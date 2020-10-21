@@ -4,8 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
-public class STController : MonoBehaviour
-{
+public class STController : MonoBehaviour {
     public enum TextAlign { Left, Right };
 
     private Image panel;
@@ -14,14 +13,14 @@ public class STController : MonoBehaviour
     private RectTransform rect;
     private int showInFrames = -1;
     private bool showNow = false;
-    private float originalWidth;
-    
-    private void Awake()
-    {
+
+    private static Vector3[] corners = new Vector3[4];
+    private static float gap = 5f;
+
+    private void Awake() {
         // Load up both text layers
         var tmps = GetComponentsInChildren<TextMeshProUGUI>();
-        for(int i = 0; i < tmps.Length; i++)
-        {
+        for (int i = 0; i < tmps.Length; i++) {
             if (tmps[i].name == "_left")
                 toolTipTextLeft = tmps[i];
 
@@ -33,21 +32,16 @@ public class STController : MonoBehaviour
         panel = GetComponent<Image>();
         rect = GetComponent<RectTransform>();
 
-        // Remember original width
-        originalWidth = rect.sizeDelta.x;
-
         // Hide at the start
         HideTooltip();
     }
 
-    void Update()
-    {
+    void Update() {
         ResizeToMatchText();
         UpdateShow();
     }
 
-    private void ResizeToMatchText()
-    {
+    private void ResizeToMatchText() {
         // Find the biggest height between both text layers
         var bounds = toolTipTextLeft.textBounds;
         float biggestY = toolTipTextLeft.textBounds.size.y;
@@ -58,70 +52,58 @@ public class STController : MonoBehaviour
         // Dont forget to add the margins
         var margins = toolTipTextLeft.margin.y * 2;
 
-        // Also reduce width if text is small
-        float widthLeft = Mathf.Clamp(toolTipTextRight.GetPreferredValues().x + toolTipTextLeft.GetPreferredValues().x + margins, 0, rect.sizeDelta.x);
-        float widthRight = Mathf.Clamp(toolTipTextRight.GetPreferredValues().x + margins, 0, rect.sizeDelta.x);
-        float width = Mathf.Max(widthLeft, widthRight);
-
         // Update the height of the tooltip panel
-        rect.sizeDelta = new Vector2(width, biggestY + margins);
+        rect.sizeDelta = new Vector2(rect.sizeDelta.x, biggestY + margins);
     }
 
-    private void ResetWidth()
-    {
-        rect.sizeDelta = new Vector2(originalWidth, rect.sizeDelta.y);
-    }
-
-    private void UpdateShow()
-    {
+    private void UpdateShow() {
         if (showInFrames == -1)
             return;
 
         if (showInFrames == 0)
             showNow = true;
 
-        if (showNow)
-        {
-            // If it doesn't fit on the right, clamp it
-            Vector2 showPosition = Input.mousePosition;
-            showPosition.x = Mathf.Clamp(showPosition.x, 0, Screen.width - rect.sizeDelta.x);
+        if (showNow) {
+            rect.anchoredPosition = Input.mousePosition;
 
-            // Vertical offset will be around 5% of screen height
-            // This will avoid overlapping with finger on mobile or cursor icon on PC
-            float offsetY = Screen.height * 0.05f;
+            rect.GetWorldCorners(corners);
 
-            // Bellow cursor
-            if (showPosition.y + rect.sizeDelta.y + offsetY > Screen.height)
-            {
-                showPosition.y -= (rect.sizeDelta.y + offsetY);
+            var min = Vector2.Min(corners[0], Vector2.Min(corners[1], Vector2.Min(corners[2], corners[3])));
+            var max = Vector2.Max(corners[0], Vector2.Max(corners[1], Vector2.Max(corners[2], corners[3])));
+
+
+            //Debug.Log($"min.x: {min.x} min.y: {min.y} max.x: {max.x} max.y: {max.y}");
+
+            var position = rect.anchoredPosition;
+
+            if (min.x + gap + Mathf.Epsilon < 0.0f) {
+                position.x -= min.x;
+            } else if (max.x - gap - Mathf.Epsilon > Screen.width) {
+                position.x -= max.x - Screen.width;
             }
 
-            // Above cursor
-            else
-            {
-                showPosition.y += offsetY;
+            if (min.y + Mathf.Epsilon < 0.0f) {
+                position.y -= min.y;
+            } else if (max.y - Mathf.Epsilon > Screen.height) {
+                position.y -= max.y - Screen.height;
             }
 
-            // Update position
-            rect.anchoredPosition = showPosition;
+            rect.anchoredPosition = position;
         }
 
         showInFrames -= 1;
     }
 
-    public void SetRawText(string text, TextAlign align = TextAlign.Left)
-    {
+    public void SetRawText(string text, TextAlign align = TextAlign.Left) {
         // Doesn't change style, just the text
-        if(align == TextAlign.Left)
+        if (align == TextAlign.Left)
             toolTipTextLeft.text = text;
         if (align == TextAlign.Right)
             toolTipTextRight.text = text;
-        ResetWidth();
         ResizeToMatchText();
     }
 
-    public void SetCustomStyledText(string text, SimpleTooltipStyle style, TextAlign align = TextAlign.Left)
-    {
+    public void SetCustomStyledText(string text, SimpleTooltipStyle style, TextAlign align = TextAlign.Left) {
         // Update the panel sprite and color
         panel.sprite = style.slicedSprite;
         panel.color = style.color;
@@ -134,8 +116,7 @@ public class STController : MonoBehaviour
 
         // Convert all tags to TMPro markup
         var styles = style.fontStyles;
-        for(int i = 0; i < styles.Length; i++)
-        {
+        for (int i = 0; i < styles.Length; i++) {
             string addTags = "</b></i></u></s>";
             addTags += "<color=#" + ColorToHex(styles[i].color) + ">";
             if (styles[i].bold) addTags += "<b>";
@@ -148,28 +129,24 @@ public class STController : MonoBehaviour
             toolTipTextLeft.text = text;
         if (align == TextAlign.Right)
             toolTipTextRight.text = text;
-        ResetWidth();
         ResizeToMatchText();
     }
 
-    public string ColorToHex(Color color)
-    {
+    public string ColorToHex(Color color) {
         int r = (int)(color.r * 255);
         int g = (int)(color.g * 255);
         int b = (int)(color.b * 255);
         return r.ToString("X2") + g.ToString("X2") + b.ToString("X2");
     }
 
-    public void ShowTooltip()
-    {
+    public void ShowTooltip() {
         // After 2 frames, showNow will be set to TRUE
         // after that the frame count wont matter
         if (showInFrames == -1)
             showInFrames = 2;
     }
 
-    public void HideTooltip()
-    {
+    public void HideTooltip() {
         showInFrames = -1;
         showNow = false;
         rect.anchoredPosition = new Vector2(Screen.currentResolution.width, Screen.currentResolution.height);
